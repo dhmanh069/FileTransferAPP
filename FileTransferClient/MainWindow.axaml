@@ -1,0 +1,89 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FileTransferClient.MainWindow"
+        Title="File Transfer Client"
+        Width="700"
+        Height="600">
+
+    <ScrollViewer>
+        <StackPanel Margin="20" Spacing="10">
+
+            <TextBlock Text="File Transfer Client"
+                       FontSize="24"
+                       FontWeight="Bold"/>
+
+            <TextBlock Text="Username"/>
+            <TextBox Name="txtUsername" PlaceholderText="Enter username"/>
+
+
+            <TextBlock Text="Server IP"/>
+            <TextBox Name="txtIP"
+                     Text="127.0.0.1"/>
+
+            <TextBlock Text="Port"/>
+            <TextBox Name="txtPort"
+                     Text="5000"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+
+                <Button Name="btnConnect"
+                        Width="100">
+                    Connect
+                </Button>
+
+                <Button Name="btnLogout"
+                        Width="100">
+                    Logout
+                </Button>
+
+            </StackPanel>
+
+            <TextBlock Text="Online Users"
+                       FontWeight="Bold"/>
+
+            <ListBox Name="lstUsers"
+                     Height="120"/>
+
+            <TextBlock Text="Selected File"
+                       FontWeight="Bold"/>
+
+            <TextBlock Name="txtFileName"
+                       Text="No file selected"/>
+
+            <StackPanel Orientation="Horizontal"
+                        Spacing="10">
+
+                <Button Name="btnBrowse"
+                        Width="120">
+                    Browse File
+                </Button>
+
+                <Button Name="btnSend"
+                        Width="120">
+                    Send File
+                </Button>
+                <Button Name="btnSave"
+        Width="120">
+    Save File
+</Button>
+
+            </StackPanel>
+
+            <TextBlock Text="Progress"
+                       FontWeight="Bold"/>
+
+            <ProgressBar Name="progressBar"
+                         Minimum="0"
+                         Maximum="100"
+                         Height="20"/>
+
+            <TextBlock Text="Status"
+                       FontWeight="Bold"/>
+
+            <TextBlock Name="txtStatus"
+                       Text="Disconnected"/>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</Window>
