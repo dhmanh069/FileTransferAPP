@@ -28,9 +28,8 @@ public partial class MainWindow : Window
         btnBrowse.Click += BtnBrowse_Click;
         btnSend.Click += BtnSend_Click;
         btnSave.Click += BtnSave_Click;
-        
-        // Đăng ký sự kiện click cho nút Logout
-        btnLogout.Click += BtnLogout_Click;
+     btnLogout.Click += BtnLogout_Click;
+     btnSendMessage.Click += BtnSendMessage_Click;
     }
 
     private async void BtnSend_Click(object? sender, RoutedEventArgs e)
@@ -206,6 +205,18 @@ public partial class MainWindow : Window
                         txtFileName.Text = $"Saved: {savePath}";
                     });
                 }
+                else if (header.StartsWith("CHAT|"))
+{
+    string[] parts = header.Split('|', 3);
+
+    string sender = parts[1];
+    string message = parts[2];
+
+    Dispatcher.UIThread.Post(() =>
+    {
+        lstChat.Items.Add($"{sender}: {message}");
+    });
+}
             }
         }
         catch
@@ -300,4 +311,31 @@ public partial class MainWindow : Window
             txtStatus.Text = $"Logout error: {ex.Message}";
         }
     }
+private void BtnSendMessage_Click(object? sender, RoutedEventArgs e)
+{
+    if (lstUsers.SelectedItem == null)
+    {
+        txtStatus.Text = "Please select receiver";
+        return;
+    }
+
+    if (string.IsNullOrWhiteSpace(txtMessage.Text))
+    {
+        txtStatus.Text = "Please enter message";
+        return;
+    }
+
+    string receiver = lstUsers.SelectedItem.ToString()!;
+    string message = txtMessage.Text!;
+
+    string header = $"CHAT|{receiver}|{message}";
+    byte[] headerBytes = Encoding.UTF8.GetBytes(header);
+    byte[] headerLengthBytes = BitConverter.GetBytes(headerBytes.Length);
+
+    stream!.Write(headerLengthBytes, 0, headerLengthBytes.Length);
+    stream.Write(headerBytes, 0, headerBytes.Length);
+
+    lstChat.Items.Add($"Me -> {receiver}: {message}");
+    txtMessage.Text = "";
+}
 }

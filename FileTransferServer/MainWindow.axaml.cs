@@ -184,6 +184,32 @@ public partial class MainWindow : Window
                         lstHistory.Items.Add($"Size: {fileSize} bytes");
                     });
                 }
+                else if (header.StartsWith("CHAT|"))
+{
+    string[] parts = header.Split('|', 3);
+
+    string receiver = parts[1];
+    string message = parts[2];
+
+    if (clients.ContainsKey(receiver))
+    {
+        TcpClient receiverClient = clients[receiver];
+        NetworkStream receiverStream = receiverClient.GetStream();
+
+        string sendHeader = $"CHAT|{username}|{message}";
+        byte[] sendHeaderBytes = Encoding.UTF8.GetBytes(sendHeader);
+        byte[] sendHeaderLengthBytes = BitConverter.GetBytes(sendHeaderBytes.Length);
+
+        receiverStream.Write(sendHeaderLengthBytes, 0, sendHeaderLengthBytes.Length);
+        receiverStream.Write(sendHeaderBytes, 0, sendHeaderBytes.Length);
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            lstHistory.Items.Add($"Chat: {username} -> {receiver}");
+        });
+    }
+}
+                
                 // --- THÊM MỚI: Xử lý thông điệp LOGOUT ---
                 else if (header.StartsWith("LOGOUT|"))
                 {

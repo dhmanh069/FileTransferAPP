@@ -43,6 +43,19 @@
 
             <ListBox Name="lstUsers"
                      Height="120"/>
+                     <TextBlock Text="Chat"
+           FontWeight="Bold"/>
+
+<ListBox Name="lstChat"
+         Height="150"/>
+
+<TextBox Name="txtMessage"
+         Watermark="Enter message"/>
+
+<Button Name="btnSendMessage"
+        Width="120">
+    Send Message
+</Button>
 
             <TextBlock Text="Selected File"
                        FontWeight="Bold"/>
