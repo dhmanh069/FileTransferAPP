@@ -9,6 +9,7 @@ using Avalonia.Platform.Storage;
 using System.Linq;
 using System.IO;
 using System.Threading;
+using System.Collections.Generic;
 
 namespace FileTransferClient;
 
@@ -16,10 +17,10 @@ public partial class MainWindow : Window
 {
     private TcpClient? client;
     private NetworkStream? stream;
-    private string? selectedFilePath;
-    private byte[]? receivedFileData;
+private List<string> selectedFilePaths = new List<string>();    private byte[]? receivedFileData;
     private string? receivedFileName;
     private string? receivedSenderName;
+    private List<ReceivedFileItem> receivedFiles = new List<ReceivedFileItem>();
 
     public MainWindow()
     {
@@ -32,25 +33,28 @@ public partial class MainWindow : Window
      btnSendMessage.Click += BtnSendMessage_Click;
     }
 
-    private async void BtnSend_Click(object? sender, RoutedEventArgs e)
+   private async void BtnSend_Click(object? sender, RoutedEventArgs e)
+{
+    if (selectedFilePaths.Count == 0)
     {
-        if (selectedFilePath == null)
-        {
-            txtStatus.Text = "Please select a file first";
-            return;
-        }
+        txtStatus.Text = "Please select file(s) first";
+        return;
+    }
 
-        if (lstUsers.SelectedItem == null)
-        {
-            txtStatus.Text = "Please select receiver";
-            return;
-        }
+    if (lstUsers.SelectedItem == null)
+    {
+        txtStatus.Text = "Please select receiver";
+        return;
+    }
 
-        string receiver = lstUsers.SelectedItem.ToString()!;
-        string fileName = Path.GetFileName(selectedFilePath);
+    string receiver = lstUsers.SelectedItem.ToString()!;
 
-        try
+    try
+    {
+        foreach (string selectedFilePath in selectedFilePaths)
         {
+            string fileName = Path.GetFileName(selectedFilePath);
+
             FileInfo fileInfo = new FileInfo(selectedFilePath);
             long fileSize = fileInfo.Length;
 
@@ -66,47 +70,63 @@ public partial class MainWindow : Window
             stream.Write(fileSizeBytes, 0, fileSizeBytes.Length);
 
             progressBar.Value = 0;
+
             using (FileStream fs = new FileStream(selectedFilePath, FileMode.Open, FileAccess.Read))
             {
-                byte[] buffer = new byte[64 * 1024]; 
+                byte[] buffer = new byte[64 * 1024];
                 int bytesRead;
                 long totalSent = 0;
 
                 while ((bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length)) > 0)
                 {
                     await stream.WriteAsync(buffer, 0, bytesRead);
+
                     totalSent += bytesRead;
 
                     int percent = (int)((totalSent * 100.0) / fileSize);
+
                     Dispatcher.UIThread.Post(() =>
                     {
                         progressBar.Value = percent;
-                        txtStatus.Text = $"Sending... {percent}%";
+                        txtStatus.Text = $"Sending {fileName}... {percent}%";
                     });
                 }
             }
+            string timeText = DateTime.Now.ToString("HH:mm:ss");
 
-            txtStatus.Text = "File sent to server";
+Dispatcher.UIThread.Post(() =>
+{
+    lstChat.Items.Add($"[{timeText}] Me sent file: {fileName}");
+});
         }
-        catch (Exception ex)
-        {
-            txtStatus.Text = $"Send error: {ex.Message}";
-        }
+
+        txtStatus.Text = "All files sent";
     }
+    catch (Exception ex)
+    {
+        txtStatus.Text = $"Send error: {ex.Message}";
+    }
+}
 
     private async void BtnBrowse_Click(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Chọn file cần gửi",
-            AllowMultiple = false
+           AllowMultiple = true
         });
 
         if (files.Count > 0)
-        {
-            selectedFilePath = files[0].Path.LocalPath;
-txtFileName.Text = Path.GetFileName(selectedFilePath);
-        }
+{
+    selectedFilePaths.Clear();
+
+    foreach (var file in files)
+    {
+        selectedFilePaths.Add(file.Path.LocalPath);
+    }
+
+    txtFileName.Text = $"Selected {selectedFilePaths.Count} file(s)";
+}
     }
 
     private void BtnConnect_Click(object? sender, RoutedEventArgs e)
@@ -177,16 +197,31 @@ txtFileName.Text = Path.GetFileName(selectedFilePath);
                     long fileSize = BitConverter.ToInt64(fileSizeBytes, 0);
 
                     Dispatcher.UIThread.Post(() =>
+                    
                     {
+                        
                         progressBar.Value = 0;
                         txtStatus.Text = $"Receiving file from {senderName}...";
                     });
+                    
 
                     byte[] fileData = ReadExact(stream!, fileSize, true);
                     
-                    receivedFileData = fileData;
-                    receivedFileName = fileName;
-                    receivedSenderName = senderName;
+                 var receivedFile = new ReceivedFileItem
+{
+    FileName = fileName,
+    FileData = fileData,
+    SenderName = senderName,
+    ReceivedAt = DateTime.Now
+};
+
+receivedFiles.Add(receivedFile);
+                    string timeText = DateTime.Now.ToString("HH:mm:ss");
+
+Dispatcher.UIThread.Post(() =>
+{
+    lstChat.Items.Add($"[{timeText}] {senderName} sent file: {fileName}");
+});
                     
                     string saveFolder = Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
@@ -203,6 +238,7 @@ txtFileName.Text = Path.GetFileName(selectedFilePath);
                     {
                         txtStatus.Text = $"Received file from {senderName}";
                         txtFileName.Text = fileName;
+                        lstChat.Items.Add(receivedFile);
                     });
                 }
                 else if (header.StartsWith("CHAT|"))
@@ -269,30 +305,31 @@ txtFileName.Text = Path.GetFileName(selectedFilePath);
     }
 
     private async void BtnSave_Click(object? sender, RoutedEventArgs e)
+{
+    if (lstChat.SelectedItem is not ReceivedFileItem selectedFile)
     {
-        if (receivedFileData == null || receivedFileName == null)
-        {
-            txtStatus.Text = "No received file to save";
-            return;
-        }
-
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Save received file",
-            SuggestedFileName = receivedFileName
-        });
-
-        if (file == null)
-        {
-            txtStatus.Text = "Save cancelled";
-            return;
-        }
-        string savePath = file.Path.LocalPath;
-
-        File.WriteAllBytes(savePath, receivedFileData);
-
-        txtStatus.Text = $"File saved: {savePath}";
+        txtStatus.Text = "Please select a received file in chat";
+        return;
     }
+
+    var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+    {
+        Title = "Save received file",
+        SuggestedFileName = selectedFile.FileName
+    });
+
+    if (file == null)
+    {
+        txtStatus.Text = "Save cancelled";
+        return;
+    }
+
+    string savePath = file.Path.LocalPath;
+
+    File.WriteAllBytes(savePath, selectedFile.FileData);
+
+    txtStatus.Text = $"File saved: {Path.GetFileName(savePath)}";
+}
 
     private void BtnLogout_Click(object? sender, RoutedEventArgs e)
     {
@@ -386,4 +423,17 @@ private async Task DeleteMessageAfterDelay(string text, int minutes)
         lstChat.Items.Remove(text);
     });
 }
+public class ReceivedFileItem
+{
+    public string FileName { get; set; } = "";
+    public byte[] FileData { get; set; } = Array.Empty<byte>();
+    public string SenderName { get; set; } = "";
+    public DateTime ReceivedAt { get; set; }
+
+    public override string ToString()
+    {
+        return $"[{ReceivedAt:HH:mm:ss}] {SenderName} sent file: {FileName}";
+    }
 }
+}
+
