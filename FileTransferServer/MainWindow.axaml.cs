@@ -184,28 +184,33 @@ public partial class MainWindow : Window
                         lstHistory.Items.Add($"Size: {fileSize} bytes");
                     });
                 }
-                else if (header.StartsWith("CHAT|"))
+               else if (header.StartsWith("CHAT|"))
 {
-    string[] parts = header.Split('|', 3);
+    string[] parts = header.Split('|', 4);
 
     string receiver = parts[1];
-    string message = parts[2];
+    int deleteAfterMinutes = int.Parse(parts[2]);
+    string message = parts[3];
 
     if (clients.ContainsKey(receiver))
     {
         TcpClient receiverClient = clients[receiver];
         NetworkStream receiverStream = receiverClient.GetStream();
 
-        string sendHeader = $"CHAT|{username}|{message}";
+        string sendHeader = $"CHAT|{username}|{deleteAfterMinutes}|{message}";
         byte[] sendHeaderBytes = Encoding.UTF8.GetBytes(sendHeader);
         byte[] sendHeaderLengthBytes = BitConverter.GetBytes(sendHeaderBytes.Length);
 
         receiverStream.Write(sendHeaderLengthBytes, 0, sendHeaderLengthBytes.Length);
         receiverStream.Write(sendHeaderBytes, 0, sendHeaderBytes.Length);
 
+        string timeText = DateTime.Now.ToString("HH:mm:ss");
+
         Dispatcher.UIThread.Post(() =>
         {
-            lstHistory.Items.Add($"Chat: {username} -> {receiver}");
+            lstHistory.Items.Add(
+                $"[{timeText}] Chat: {username} -> {receiver}: {message} (delete after {deleteAfterMinutes} min)"
+            );
         });
     }
 }

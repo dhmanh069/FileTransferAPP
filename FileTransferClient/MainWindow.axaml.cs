@@ -105,7 +105,7 @@ public partial class MainWindow : Window
         if (files.Count > 0)
         {
             selectedFilePath = files[0].Path.LocalPath;
-            txtFileName.Text = selectedFilePath;
+txtFileName.Text = Path.GetFileName(selectedFilePath);
         }
     }
 
@@ -202,19 +202,31 @@ public partial class MainWindow : Window
                     Dispatcher.UIThread.Post(() =>
                     {
                         txtStatus.Text = $"Received file from {senderName}";
-                        txtFileName.Text = $"Saved: {savePath}";
+                        txtFileName.Text = fileName;
                     });
                 }
                 else if (header.StartsWith("CHAT|"))
 {
-    string[] parts = header.Split('|', 3);
+    string[] parts = header.Split('|', 4);
 
     string sender = parts[1];
-    string message = parts[2];
+    int deleteAfterMinutes = int.Parse(parts[2]);
+    string message = parts[3];
+
+    string timeText = DateTime.Now.ToString("HH:mm");
+
+    string displayText = deleteAfterMinutes > 0
+        ? $"[{timeText}] {sender}: {message} (deleted after {deleteAfterMinutes} minutes)"
+        : $"[{timeText}] {sender}: {message}";
 
     Dispatcher.UIThread.Post(() =>
     {
-        lstChat.Items.Add($"{sender}: {message}");
+        lstChat.Items.Add(displayText);
+
+        if (deleteAfterMinutes > 0)
+        {
+            _ = DeleteMessageAfterDelay(displayText, deleteAfterMinutes);
+        }
     });
 }
             }
@@ -326,16 +338,52 @@ private void BtnSendMessage_Click(object? sender, RoutedEventArgs e)
     }
 
     string receiver = lstUsers.SelectedItem.ToString()!;
-    string message = txtMessage.Text!;
+var parsed = ParseChatMessage(txtMessage.Text!);
 
-    string header = $"CHAT|{receiver}|{message}";
-    byte[] headerBytes = Encoding.UTF8.GetBytes(header);
+string message = parsed.Message;
+int deleteAfterMinutes = parsed.DeleteAfterMinutes;
+string header = $"CHAT|{receiver}|{deleteAfterMinutes}|{message}";    byte[] headerBytes = Encoding.UTF8.GetBytes(header);
     byte[] headerLengthBytes = BitConverter.GetBytes(headerBytes.Length);
 
     stream!.Write(headerLengthBytes, 0, headerLengthBytes.Length);
     stream.Write(headerBytes, 0, headerBytes.Length);
 
-    lstChat.Items.Add($"Me -> {receiver}: {message}");
-    txtMessage.Text = "";
+string timeText = DateTime.Now.ToString("HH:mm");
+
+string displayText = deleteAfterMinutes > 0
+    ? $"[{timeText}] Me: {message} (deleted after {deleteAfterMinutes} minutes)"
+    : $"[{timeText}] Me: {message}";
+
+lstChat.Items.Add(displayText);    txtMessage.Text = "";
+if (deleteAfterMinutes > 0)
+{
+    _ = DeleteMessageAfterDelay(displayText, deleteAfterMinutes);
+}
+}
+private (string Message, int DeleteAfterMinutes) ParseChatMessage(string input)
+{
+    int deleteAfterMinutes = 0;
+    string message = input;
+
+    if (input.StartsWith("/del "))
+    {
+        string[] parts = input.Split(' ', 3);
+
+        if (parts.Length == 3 && int.TryParse(parts[1], out deleteAfterMinutes))
+        {
+            message = parts[2];
+        }
+    }
+
+    return (message, deleteAfterMinutes);
+}
+private async Task DeleteMessageAfterDelay(string text, int minutes)
+{
+    await Task.Delay(TimeSpan.FromMinutes(minutes));
+
+    Dispatcher.UIThread.Post(() =>
+    {
+        lstChat.Items.Remove(text);
+    });
 }
 }
